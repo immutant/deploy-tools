@@ -49,16 +49,19 @@
                   (if (seq paths)
                     paths
                     default)))
-              [[[:resources-path  ;; lein1
-                 :resource-paths] ;; lein2
+              [[[:resources-path    ;; lein1
+                 :resource-paths]   ;; lein2
                 "resources"] 
-               [[:source-path     ;; lein1
-                 :source-paths]   ;; lein2
+               [[:source-path       ;; lein1
+                 :source-paths]     ;; lein2
                 "src"]       
-               [[:native-path]    ;; lein2
+               [[:native-path]      ;; lein2
                 "native"]
-               [[:library-path]   ;; lein1
+               [[:library-path]     ;; lein1
                 "lib"]
+               [[:compile-path]     ;; lein1 & 2
+                ["classes"          ;; lein1 default
+                 "target/classes"]] ;; lein2 default
                ])
          "project.clj"
          "immutant.clj"))))

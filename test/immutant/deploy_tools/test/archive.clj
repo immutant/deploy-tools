@@ -20,18 +20,27 @@
                "src"
                "resources"
                "project.clj"
-               "immutant.clj")))
+               "immutant.clj"
+               "classes"
+               "target/classes")))
 
       (testing "with a project"
-        (let [entry-points (entry-points {:source-paths ["srca" "srcb"]} (.getAbsolutePath app-root))]
+        (let [entry-points (entry-points
+                            {:source-paths ["srca" "srcb"]
+                             :compile-path "some-classes"}
+                            (.getAbsolutePath app-root))]
           (are [path] (contains-file-path? entry-points path)
                "lib"
                "srca"
                "srcb"
                "resources"
                "project.clj"
-               "immutant.clj")
-          (is (not (contains-file-path? entry-points "src")))))))
+               "immutant.clj"
+               "some-classes")
+          (are [path] (not (contains-file-path? entry-points path))
+               "src"
+               "classes"
+               "target/classes")))))
 
   (deftest test-create
     (testing "the dir name should be used to name the archive with no project"
@@ -46,4 +55,5 @@
         (are [path] (contains-path? (constantly path) entries path)
              "immutant.clj"
              "lib/foo.jar"
-             "src/app_root/core.clj")))))
+             "src/app_root/core.clj"
+             "classes/FakeClass.class")))))
