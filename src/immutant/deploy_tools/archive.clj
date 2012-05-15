@@ -56,7 +56,7 @@
                  :source-paths]     ;; lein2
                 "src"]       
                [[:native-path]      ;; lein2
-                "native"]
+                "target/native"]
                [[:library-path]     ;; lein1
                 "lib"]
                [[:compile-path]     ;; lein1 & 2

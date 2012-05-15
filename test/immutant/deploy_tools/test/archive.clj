@@ -36,7 +36,8 @@
                "resources"
                "project.clj"
                "immutant.clj"
-               "some-classes")
+               "some-classes"
+               "target/native")
           (are [path] (not (contains-file-path? entry-points path))
                "src"
                "classes"
