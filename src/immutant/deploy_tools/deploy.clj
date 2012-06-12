@@ -13,8 +13,11 @@
           (io/delete-file file))
         true)))
 
-(defn make-descriptor [root-dir]
-  (prn-str {:root (.getAbsolutePath root-dir)}))
+(defn make-descriptor [root-dir profiles]
+  (let [base {:root (.getAbsolutePath root-dir)}]
+    (prn-str (if (seq profiles)
+               (assoc base :lein-profiles profiles)
+               base))))
 
 (defn deploy-archive [jboss-home project root-dir]
   (with-jboss-home jboss-home
@@ -29,11 +32,11 @@
       (spit (dodeploy-marker deployed-file) "")
       deployed-file)))
 
-(defn deploy-dir [jboss-home project root-dir]
+(defn deploy-dir [jboss-home project root-dir profiles]
   (with-jboss-home jboss-home
     (rm-deployment-files project root-dir [failed-marker])
     (let [deployed-file (deployment-file (descriptor-name project root-dir))]
-      (spit deployed-file (make-descriptor root-dir))
+      (spit deployed-file (make-descriptor root-dir profiles))
       (spit (dodeploy-marker deployed-file) "")
       deployed-file)))
 

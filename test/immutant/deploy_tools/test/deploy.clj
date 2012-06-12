@@ -18,12 +18,17 @@
                       (io/delete-file file true))))))
 
 (let [app-root (io/file (io/resource "app-root"))]
+
   (deftest test-make-descriptor
-    (is (= (str "{:root \"" (.getAbsolutePath app-root) "\"}\n")
-           (make-descriptor app-root))))
+    (is (= {:root (.getAbsolutePath app-root) :lein-profiles ['a' 'b']}
+           (read-string (make-descriptor app-root ['a' 'b'])))))
+
+  (deftest test-make-descriptor-with-no-profiles
+    (is (= {:root (.getAbsolutePath app-root)}
+           (read-string (make-descriptor app-root nil)))))
 
   (deftest test-deploy-dir-with-a-project
-    (let [descriptor (deploy-dir *mock-jboss-home* {:name "ham-biscuit"} app-root)
+    (let [descriptor (deploy-dir *mock-jboss-home* {:name "ham-biscuit"} app-root nil)
           expected-descriptor (io/file *deployments-dir* "ham-biscuit.clj")]
       (is (= "ham-biscuit.clj" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -31,7 +36,7 @@
       (is (.exists (io/file *deployments-dir* "ham-biscuit.clj.dodeploy")))))
 
   (deftest test-deploy-dir-without-a-project
-    (let [descriptor (deploy-dir *mock-jboss-home* nil app-root)
+    (let [descriptor (deploy-dir *mock-jboss-home* nil app-root nil)
           expected-descriptor (io/file *deployments-dir* "app-root.clj")]
       (is (= "app-root.clj" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -43,7 +48,7 @@
           failed-ima (util/failed-marker (io/file *deployments-dir* "app-root.ima"))]
       (spit failed-clj "")
       (spit failed-ima "")
-      (deploy-dir *mock-jboss-home* nil app-root)
+      (deploy-dir *mock-jboss-home* nil app-root nil)
       (is (not (.exists failed-clj)))
       (is (not (.exists failed-ima)))))
   
