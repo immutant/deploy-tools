@@ -6,3 +6,5 @@
 /checkouts
 /.lein-deps-sum
 *.ima
+/target
+deploy-tools*jar
