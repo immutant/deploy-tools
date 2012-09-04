@@ -5,8 +5,6 @@
            (java.util.jar   JarEntry JarOutputStream)
            (java.util.regex Pattern)))
 
-(def ^{:dynamic true} *dependency-resolver* (fn [_]))
-
 ;; Much of this is adapted from leiningen.jar so we don't
 ;; have to depend on lein internals, and because we generate
 ;; jars a bit differently
@@ -36,9 +34,28 @@
     (doseq [filespec filespecs]
       (copy-to-jar root-path jar filespec))))
 
+(defn ^{:private true} potential-entry-points
+  [include-deps?]
+  (remove nil?
+   [[[:resources-path    ;; lein1
+      :resource-paths]   ;; lein2
+     "resources"] 
+    [[:source-path       ;; lein1
+      :source-paths]     ;; lein2
+     "src"]       
+    [[:native-path]      ;; lein2
+     "target/native"]
+    (when include-deps?
+      [[:library-path]     ;; lein1
+       "lib"])
+    [[:compile-path]     ;; lein1 & 2
+     ["classes"          ;; lein1 default
+      "target/classes"]] ;; lein2 default
+    ]))
+
 (defn ^{:internal true} entry-points
   "Specifies the top level files to be archived, along with the dirs to be recursively archived."
-  [project root-path]
+  [project root-path include-deps?]
   (map #(if (.startsWith % root-path)
           %
           (str root-path "/" %))
@@ -49,27 +66,14 @@
                   (if (seq paths)
                     paths
                     default)))
-              [[[:resources-path    ;; lein1
-                 :resource-paths]   ;; lein2
-                "resources"] 
-               [[:source-path       ;; lein1
-                 :source-paths]     ;; lein2
-                "src"]       
-               [[:native-path]      ;; lein2
-                "target/native"]
-               [[:library-path]     ;; lein1
-                "lib"]
-               [[:compile-path]     ;; lein1 & 2
-                ["classes"          ;; lein1 default
-                 "target/classes"]] ;; lein2 default
-               ])
+              (potential-entry-points include-deps?))
          "project.clj"
          "immutant.clj"))))
 
-(defn create [project root-dir dest-dir]
+(defn create [project root-dir dest-dir include-deps? copy-deps-fn]
   (let [jar-file (io/file dest-dir (archive-name project root-dir))
         root-path (.getAbsolutePath root-dir)]
-    (*dependency-resolver* project)
-    (write-jar root-path jar-file (entry-points project root-path))
+    (and include-deps? copy-deps-fn (copy-deps-fn project))
+    (write-jar root-path jar-file (entry-points project root-path include-deps?))
     jar-file))
 

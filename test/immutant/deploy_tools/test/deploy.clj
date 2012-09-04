@@ -53,7 +53,7 @@
       (is (not (.exists failed-ima)))))
   
   (deftest test-deploy-archive-with-a-project
-    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root)
+    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root false nil)
           expected-descriptor (io/file *deployments-dir* "ham-biscuit.ima")]
       (is (= "ham-biscuit.ima" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -61,7 +61,7 @@
       (is (.exists (io/file *deployments-dir* "ham-biscuit.ima.dodeploy")))))
 
   (deftest test-deploy-archive-without-a-project
-    (let [descriptor (deploy-archive *mock-jboss-home* nil app-root)
+    (let [descriptor (deploy-archive *mock-jboss-home* nil app-root false nil)
           expected-descriptor (io/file *deployments-dir* "app-root.ima")]
       (is (= "app-root.ima" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -73,12 +73,12 @@
           failed-ima (util/failed-marker (io/file *deployments-dir* "app-root.ima"))]
       (spit failed-clj "")
       (spit failed-ima "")
-      (deploy-archive *mock-jboss-home* nil app-root)
+      (deploy-archive *mock-jboss-home* nil app-root false nil)
       (is (not (.exists failed-clj)))
       (is (not (.exists failed-ima)))))
 
   (deftest test-undeploy
-    (let [deployed-file (deploy-archive *mock-jboss-home* {:name "gravy"} app-root)
+    (let [deployed-file (deploy-archive *mock-jboss-home* {:name "gravy"} app-root false nil)
           dodeploy-marker (util/dodeploy-marker deployed-file)]
       (is (.exists deployed-file))
       (is (.exists dodeploy-marker))

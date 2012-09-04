@@ -19,7 +19,7 @@
                (assoc base :lein-profiles profiles)
                base))))
 
-(defn deploy-archive [jboss-home project root-dir]
+(defn deploy-archive [jboss-home project root-dir include-deps? copy-deps-fn]
   (with-jboss-home jboss-home
     (rm-deployment-files project root-dir [failed-marker])
     (let [archive-name (archive-name project root-dir)
@@ -27,7 +27,7 @@
           deployed-file (deployment-file archive-name)]
       (if (.exists archive-file)
         (println archive-name "already exists, skipping archive step.")
-        (archive/create project root-dir root-dir))
+        (archive/create project root-dir root-dir include-deps? copy-deps-fn))
       (io/copy archive-file deployed-file)
       (spit (dodeploy-marker deployed-file) "")
       deployed-file)))
