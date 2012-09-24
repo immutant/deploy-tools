@@ -31,11 +31,11 @@
 (defn app-name [project root-dir]
   (:name project (and root-dir (.getName root-dir))))
 
-(defn descriptor-name [project root-dir]
-  (str (app-name project root-dir) ".clj"))
+(defn descriptor-name [project root-dir options]
+  (str (:name options (app-name project root-dir)) ".clj") )
 
-(defn archive-name [project root-dir]
-  (str (app-name project root-dir) ".ima"))
+(defn archive-name [project root-dir options]
+  (str (:name options (app-name project root-dir)) ".ima"))
 
 (defn deployment-dir
   ([]
@@ -43,8 +43,8 @@
   ([jboss-home]
    (io/file jboss-home "standalone" "deployments")))
 
-(defn deployment-file [archive-name]
-  (io/file (deployment-dir) archive-name))
+(defn deployment-file [deployment-name]
+  (io/file (deployment-dir) deployment-name))
 
 (defn marker [suffix deployment-file]
   (io/file (str (.getAbsolutePath deployment-file) suffix)))

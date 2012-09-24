@@ -70,9 +70,11 @@
          "project.clj"
          "immutant.clj"))))
 
-(defn create [project root-dir dest-dir include-deps? copy-deps-fn]
-  (let [jar-file (io/file dest-dir (archive-name project root-dir))
-        root-path (.getAbsolutePath root-dir)]
+(defn create [project root-dir dest-dir options]
+  (let [jar-file (io/file dest-dir (archive-name project root-dir options))
+        root-path (.getAbsolutePath root-dir)
+        include-deps? (:include-dependencies options)
+        copy-deps-fn (:copy-deps-fn options)]
     (and include-deps? copy-deps-fn (copy-deps-fn project))
     (write-jar root-path jar-file (entry-points project root-path include-deps?))
     jar-file))

@@ -46,14 +46,15 @@
 
   (deftest test-create
     (testing "the dir name should be used to name the archive with no project"
-      (is (= "app-root.ima" (.getName (create nil app-root tmp-dir false nil)))))
+      (is (= "app-root.ima" (.getName (create nil app-root tmp-dir nil)))))
 
     (testing "the name from the project should be used if given"
-      (is (= "the-name.ima" (.getName (create {:name "the-name"} app-root tmp-dir false nil)))))
+      (is (= "the-name.ima" (.getName (create {:name "the-name"} app-root tmp-dir nil)))))
 
     (testing "the resulting archive should have the proper contents"
       (let [entries (map (memfn getName)
-                         (enumeration-seq (.entries (JarFile. (create nil app-root tmp-dir true nil)))))]
+                         (enumeration-seq (.entries (JarFile. (create nil app-root tmp-dir
+                                                                      {:include-dependencies true})))))]
         (are [path] (contains-path? (constantly path) entries path)
              "immutant.clj"
              "lib/foo.jar"
@@ -63,9 +64,9 @@
           copy-deps-fn (fn [_] (reset! called true))]
       (testing "the copy-deps-fn should be called when include-deps? is true"
         (reset! called false)
-        (create nil app-root tmp-dir true copy-deps-fn)
+        (create nil app-root tmp-dir {:include-dependencies true, :copy-deps-fn copy-deps-fn})
         (is (= true @called)))
       (testing "the copy-deps-fn should not be called when include-deps? is false"
         (reset! called false)
-        (create nil app-root tmp-dir false copy-deps-fn)
+        (create nil app-root tmp-dir {:include-dependencies false, :copy-deps-fn copy-deps-fn})
         (is (= false @called))))))
