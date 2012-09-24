@@ -58,6 +58,6 @@
 (def failed-marker
   (partial marker ".failed"))
 
-(defn application-is-deployed? [project root-dir]
-  (or (.exists (deployment-file (descriptor-name project root-dir)))
-      (.exists (deployment-file (archive-name project root-dir)))))
+(defn application-is-deployed? [project root-dir opts]
+  (or (.exists (deployment-file (descriptor-name project root-dir opts)))
+      (.exists (deployment-file (archive-name project root-dir opts)))))
