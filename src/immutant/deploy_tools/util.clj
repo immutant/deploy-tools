@@ -32,10 +32,10 @@
   (:name project (and root-dir (.getName root-dir))))
 
 (defn descriptor-name [project root-dir options]
-  (str (:name options (app-name project root-dir)) ".clj") )
+  (str (or (:name options) (app-name project root-dir)) ".clj") )
 
 (defn archive-name [project root-dir options]
-  (str (:name options (app-name project root-dir)) ".ima"))
+  (str (or (:name options) (app-name project root-dir)) ".ima"))
 
 (defn deployment-dir
   ([]

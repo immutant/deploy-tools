@@ -13,6 +13,9 @@
   (deftest descriptor-name-with-a-name-opt-should-use-that-name
     (is (= "biscuit.clj" (descriptor-name nil app-root {:name "biscuit"}))))
 
+  (deftest descriptor-name-with-a-nil-name-opt-should-not-use-that-name
+    (is (= "app-root.clj" (descriptor-name nil app-root {:name nil}))))
+
   (deftest archive-name-with-a-project-should-use-the-project-name
     (is (= "ham.ima" (archive-name {:name "ham"} app-root nil))))
 
@@ -20,4 +23,7 @@
     (is (= "app-root.ima" (archive-name nil app-root nil))))
 
   (deftest archive-name-with-a-name-opt-should-use-that-name
-    (is (= "biscuit.ima" (archive-name nil app-root {:name "biscuit"})))))
+    (is (= "biscuit.ima" (archive-name nil app-root {:name "biscuit"}))))
+  
+  (deftest archive-name-with-a-nil-name-opt-should-not-use-that-name
+    (is (= "app-root.ima" (archive-name nil app-root {:name nil})))))
