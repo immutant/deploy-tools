@@ -1,5 +1,7 @@
 # Immutant deploy-tools
 
+[![Build Status](https://secure.travis-ci.org/immutant/deploy-tools.png)](http://travis-ci.org/immutant/deploy-tools)
+
 Handy dandy tools for deploying Immutant apps. Mainly
 used by the lein-immutant.
 
