@@ -61,3 +61,25 @@
 (defn application-is-deployed? [project root-dir opts]
   (or (.exists (deployment-file (descriptor-name project root-dir opts)))
       (.exists (deployment-file (archive-name project root-dir opts)))))
+
+(defn- find-zip-entry-bytes [zs path]
+  (when-let [e (.getNextEntry zs)]
+    (if (= path (.getName e))
+      (let [size (.getSize e)
+            bytes (byte-array size)]
+        (.read zs bytes 0 size)
+        bytes)
+      (recur zs path))))
+
+(defn- find-properties [zs path]
+  (when-let [bytes (find-zip-entry-bytes zs path)]
+    (doto (java.util.Properties.)
+      (.load (java.io.StringReader. (String. bytes))))))
+
+(defn current-immutant-build-properties [jboss-home]
+  (let [jar-file (io/file jboss-home
+                          "modules/org/immutant/core/main/immutant-core-module.jar")]
+    (when (.exists jar-file)
+      (with-open [zs (java.util.zip.ZipInputStream.
+                      (io/input-stream jar-file))]
+        (find-properties zs "org/immutant/immutant.properties")))))
