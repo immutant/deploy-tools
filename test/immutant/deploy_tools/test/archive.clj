@@ -42,7 +42,15 @@
           (are [path] (not (contains-file-path? entry-points path))
                "src"
                "classes"
-               "target/classes")))))
+               "target/classes")))
+
+       (testing "with lein1 resources-path that gets duplicated to resource-paths"
+        (let [entry-points (entry-points
+                            {:resources-path "resources"
+                             :resource-paths ["resources"]}
+                            (.getAbsolutePath app-root)
+                            true)]
+          (is (= 1 (count (filter #(.endsWith % "resources") entry-points))))))))
 
   (deftest test-create
     (testing "the dir name should be used to name the archive with no project"

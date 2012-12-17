@@ -56,19 +56,19 @@
 (defn ^{:internal true} entry-points
   "Specifies the top level files to be archived, along with the dirs to be recursively archived."
   [project root-path include-deps?]
-  (map #(if (.startsWith % root-path)
-          %
-          (str root-path "/" %))
-       (flatten
-        (conj
-         (map (fn [[keys default]]
-                (let [paths (remove nil? (map #(% project) keys))]
-                  (if (seq paths)
-                    paths
-                    default)))
-              (potential-entry-points include-deps?))
-         "project.clj"
-         "immutant.clj"))))
+  (->> (potential-entry-points include-deps?)
+       (map (fn [[keys default]]
+              (let [paths (remove nil? (map #(% project) keys))]
+                (if (seq paths)
+                  paths
+                  default))))
+       (cons "project.clj")
+       (cons "immutant.clj")
+       flatten
+       set
+       (map #(if (.startsWith % root-path)
+               %
+               (str root-path "/" %)))))
 
 (defn create [project root-dir dest-dir options]
   (let [jar-file (io/file dest-dir (archive-name project root-dir options))
