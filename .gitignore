@@ -8,3 +8,4 @@
 *.ima
 /target
 deploy-tools*jar
+pom.xml.asc
