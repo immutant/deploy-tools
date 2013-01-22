@@ -15,7 +15,7 @@
 
 (defn make-descriptor [root-dir additional-config]
   (prn-str (assoc (into {} (filter (fn [[_ v]] (not (nil? v))) additional-config))
-                        :root (.getAbsolutePath root-dir))))
+             :root (.getAbsolutePath (io/file root-dir)))))
 
 (defn deploy-archive [jboss-home project root-dir options]
   (with-jboss-home jboss-home
@@ -34,7 +34,7 @@
   (with-jboss-home jboss-home
     (rm-deployment-files project path options [failed-marker])
     (let [deployed-file (deployment-file (descriptor-name project path options))]
-      (spit deployed-file (make-descriptor path additional-config))
+      (spit deployed-file (make-descriptor (:root project path) additional-config))
       (spit (dodeploy-marker deployed-file) "")
       deployed-file)))
 
