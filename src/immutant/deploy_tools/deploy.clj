@@ -17,15 +17,13 @@
   (prn-str (assoc (into {} (filter (fn [[_ v]] (not (nil? v))) additional-config))
              :root (.getAbsolutePath (io/file root-dir)))))
 
-(defn deploy-archive [jboss-home project root-dir options]
+(defn deploy-archive [jboss-home project root-dir dest-dir options]
   (with-jboss-home jboss-home
     (rm-deployment-files project root-dir options [failed-marker])
     (let [archive-name (archive-name project root-dir options)
-          archive-file (io/file root-dir archive-name)
+          archive-file (io/file dest-dir archive-name)
           deployed-file (deployment-file archive-name)]
-      (if (.exists archive-file)
-        (println archive-name "already exists, skipping archive step.")
-        (archive/create project root-dir root-dir options))
+      (archive/create project root-dir dest-dir options)
       (io/copy archive-file deployed-file)
       (spit (dodeploy-marker deployed-file) "")
       deployed-file)))

@@ -15,16 +15,30 @@
 (defn ^{:internal true} unix-path [path]
   (.replace path "\\" "/"))
 
-(defn ^{:internal true} copy-to-jar [root-path jar file]
+(defprotocol CopyToJar
+  (copy-to-jar [item jar & opts]))
+
+(extend-type java.io.File
+  CopyToJar
+  (copy-to-jar [file jar & {:keys [root-path]}]
   (let [root (str (unix-path root-path) \/)]
-    (doseq [child (file-seq (io/file file))]
+    (doseq [child (file-seq file)]
       (let [path (reduce trim-leading-str (unix-path (str child))
                          [root "/"])]
         (when (and (.exists child)
                    (not (.isDirectory child)))
           (.putNextEntry jar (doto (JarEntry. path)
                                (.setTime (.lastModified child))))
-          (io/copy child jar))))))
+          (io/copy child jar)))))))
+
+(defrecord VirtualFile [name content])
+
+(extend-type VirtualFile
+  CopyToJar
+  (copy-to-jar [vfile jar & _]
+    (.putNextEntry jar (doto (JarEntry. (:name vfile))
+                         (.setTime (System/currentTimeMillis))))
+    (io/copy (:content vfile) jar)))
 
 (defn ^{:internal true} write-jar [root-path out-file filespecs]
   (with-open [jar (-> out-file
@@ -32,50 +46,59 @@
                       (BufferedOutputStream.)
                       (JarOutputStream.))]
     (doseq [filespec filespecs]
-      (copy-to-jar root-path jar filespec))))
+      (copy-to-jar filespec jar :root-path root-path))))
 
 (defn ^{:private true} potential-entry-points
   [include-deps?]
-  (remove nil?
-   [[[:resources-path    ;; lein1
-      :resource-paths]   ;; lein2
+  (remove
+   nil?
+   [[:resource-paths
      "resources"] 
-    [[:source-path       ;; lein1
-      :source-paths]     ;; lein2
+    [:source-paths
      "src"]       
-    [[:native-path]      ;; lein2
-     "target/native"]
+    [:native-path
+     ["native"
+      "target/native"]]
     (when include-deps?
-      [[:library-path]     ;; lein1
+      [:no-key
        "lib"])
-    [[:compile-path]     ;; lein1 & 2
-     ["classes"          ;; lein1 default
-      "target/classes"]] ;; lein2 default
-    ]))
+    [:compile-path
+     ["classes"     
+      "target/classes"]]]))
 
 (defn ^{:internal true} entry-points
   "Specifies the top level files to be archived, along with the dirs to be recursively archived."
   [project root-path include-deps?]
   (->> (potential-entry-points include-deps?)
-       (map (fn [[keys default]]
-              (let [paths (remove nil? (map #(% project) keys))]
+       (map (fn [[k default]]
+              (let [paths (k project)]
                 (if (seq paths)
                   paths
                   default))))
        (cons "project.clj")
-       (cons "immutant.clj")
        flatten
        set
        (map #(if (.startsWith % root-path)
                %
-               (str root-path "/" %)))))
+               (str root-path "/" %)))
+       (map io/file)))
+
+(defn ^:internal internal-descriptor [opts]
+  (let [opts (into {} (remove (comp nil? val) opts))]
+    (when-not (empty? opts)
+      (VirtualFile. ".immutant.clj" (pr-str opts)))))
 
 (defn create [project root-dir dest-dir options]
   (let [jar-file (io/file dest-dir (archive-name project root-dir options))
         root-path (.getAbsolutePath root-dir)
         include-deps? (:include-dependencies options)
-        copy-deps-fn (:copy-deps-fn options)]
+        copy-deps-fn (:copy-deps-fn options)
+        filespecs (entry-points project root-path include-deps?)
+        id (internal-descriptor (dissoc options
+                                        :include-dependencies
+                                        :copy-deps-fn
+                                        :name))]
     (and include-deps? copy-deps-fn (copy-deps-fn project))
-    (write-jar root-path jar-file (entry-points project root-path include-deps?))
+    (write-jar root-path jar-file (if id (conj filespecs id) filespecs))
     jar-file))
 
