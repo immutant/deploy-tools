@@ -1,8 +1,8 @@
 (ns immutant.deploy-tools.test.archive
-  (:use [immutant.deploy-tools.archive])
-  (:use [clojure.test])
+  (:use immutant.deploy-tools.archive
+        clojure.test)
   (:require [clojure.java.io :as io])
-  (:import [java.util.jar JarFile]))
+  (:import java.util.jar.JarFile))
 
 
 (defn contains-path? [pathifier entries path]
@@ -11,7 +11,7 @@
 
 (let [app-root (io/file (io/resource "app-root"))
       tmp-dir (io/file "/tmp")]
-  (let [contains-file-path? (partial contains-path? #(.getAbsolutePath (io/file app-root %)))]
+  (let [contains-file-path? (partial contains-path?  #(io/file app-root %))]
     (deftest test-entry-points
       (testing "with no project"
         (let [entry-points (entry-points nil (.getAbsolutePath app-root) true)]
@@ -20,7 +20,8 @@
                "src"
                "resources"
                "project.clj"
-               "immutant.clj"
+               "native"
+               "target/native"
                "classes"
                "target/classes")))
 
@@ -36,21 +37,12 @@
                "srcb"
                "resources"
                "project.clj"
-               "immutant.clj"
                "some-classes"
                "target/native")
           (are [path] (not (contains-file-path? entry-points path))
                "src"
                "classes"
-               "target/classes")))
-
-       (testing "with lein1 resources-path that gets duplicated to resource-paths"
-        (let [entry-points (entry-points
-                            {:resources-path "resources"
-                             :resource-paths ["resources"]}
-                            (.getAbsolutePath app-root)
-                            true)]
-          (is (= 1 (count (filter #(.endsWith % "resources") entry-points))))))))
+               "target/classes")))))
 
   (deftest test-create
     (testing "the dir name should be used to name the archive with no project"
@@ -64,7 +56,6 @@
                          (enumeration-seq (.entries (JarFile. (create nil app-root tmp-dir
                                                                       {:include-dependencies true})))))]
         (are [path] (contains-path? (constantly path) entries path)
-             "immutant.clj"
              "lib/foo.jar"
              "src/app_root/core.clj"
              "classes/FakeClass.class")))

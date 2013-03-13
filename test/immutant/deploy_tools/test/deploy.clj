@@ -82,7 +82,7 @@
       (is (= "bar" (:foo descriptor-contents)))))
 
   (deftest test-deploy-archive-with-a-project
-    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root nil)
+    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root app-root nil)
           expected-descriptor (io/file *deployments-dir* "ham-biscuit.ima")]
       (is (= "ham-biscuit.ima" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -90,7 +90,7 @@
       (is (.exists (io/file *deployments-dir* "ham-biscuit.ima.dodeploy")))))
 
   (deftest test-deploy-archive-without-a-project
-    (let [descriptor (deploy-archive *mock-jboss-home* nil app-root nil)
+    (let [descriptor (deploy-archive *mock-jboss-home* nil app-root app-root nil)
           expected-descriptor (io/file *deployments-dir* "app-root.ima")]
       (is (= "app-root.ima" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -98,7 +98,7 @@
       (is (.exists (io/file *deployments-dir* "app-root.ima.dodeploy")))))
 
   (deftest test-deploy-archive-with-a-name
-    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root {:name "gravy"})
+    (let [descriptor (deploy-archive *mock-jboss-home* {:name "ham-biscuit"} app-root app-root {:name "gravy"})
           expected-descriptor (io/file *deployments-dir* "gravy.ima")]
       (is (= "gravy.ima" (.getName descriptor)))
       (is (= expected-descriptor descriptor))
@@ -110,13 +110,13 @@
           failed-ima (util/failed-marker (io/file *deployments-dir* "app-root.ima"))]
       (spit failed-clj "")
       (spit failed-ima "")
-      (deploy-archive *mock-jboss-home* nil app-root nil)
+      (deploy-archive *mock-jboss-home* nil app-root app-root nil)
       (is (not (.exists failed-clj)))
       (is (not (.exists failed-ima)))))
 
 
   (deftest test-undeploy
-    (let [deployed-file (deploy-archive *mock-jboss-home* {:name "gravy"} app-root nil)
+    (let [deployed-file (deploy-archive *mock-jboss-home* {:name "gravy"} app-root app-root nil)
           dodeploy-marker (util/dodeploy-marker deployed-file)]
       (is (.exists deployed-file))
       (is (.exists dodeploy-marker))
