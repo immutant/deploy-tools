@@ -23,8 +23,12 @@
                "native"
                "target/native"
                "classes"
-               "target/classes")))
-
+               "target/classes")
+          
+          (are [path] (not (contains-file-path? entry-points path))
+               "srca"
+               "srcb")))
+            
       (testing "with a project"
         (let [entry-points (entry-points
                             {:source-paths ["srca" "srcb"]
@@ -42,8 +46,33 @@
           (are [path] (not (contains-file-path? entry-points path))
                "src"
                "classes"
+               "target/classes")))
+
+      (testing "with a project - :omit-source true"
+        (let [entry-points (entry-points
+                            {:source-paths ["srca" "srcb"]
+                             :compile-path "some-classes"
+                             :omit-source true}
+                            (.getAbsolutePath app-root)
+                            true)]
+          (are [path] (contains-file-path? entry-points path)
+               "lib"
+               "resources"
+               "project.clj"
+               "some-classes"
+               "target/native")
+          (are [path] (not (contains-file-path? entry-points path))
+               "src"
+               "srca"
+               "srcb"
+               "classes"
                "target/classes")))))
 
+  (defn jar-entry-seq [file]
+    (with-open [jarfile (JarFile. file)]
+      (mapv (memfn getName)
+            (enumeration-seq (.entries jarfile)))))
+  
   (deftest test-create
     (testing "the dir name should be used to name the archive with no project"
       (is (= "app-root.ima" (.getName (create nil app-root tmp-dir nil)))))
@@ -52,13 +81,13 @@
       (is (= "the-name.ima" (.getName (create {:name "the-name"} app-root tmp-dir nil)))))
 
     (testing "the resulting archive should have the proper contents"
-      (let [entries (map (memfn getName)
-                         (enumeration-seq (.entries (JarFile. (create nil app-root tmp-dir
-                                                                      {:include-dependencies true})))))]
+      (let [entries (jar-entry-seq (create nil app-root tmp-dir
+                                           {:include-dependencies true}))]
         (are [path] (contains-path? (constantly path) entries path)
              "lib/foo.jar"
              "src/app_root/core.clj"
              "classes/FakeClass.class")))
+    
     (let [called (atom nil)
           copy-deps-fn (fn [_] (reset! called true))]
       (testing "the copy-deps-fn should be called when include-deps? is true"
@@ -68,4 +97,19 @@
       (testing "the copy-deps-fn should not be called when include-deps? is false"
         (reset! called false)
         (create nil app-root tmp-dir {:include-dependencies false, :copy-deps-fn copy-deps-fn})
-        (is (= false @called))))))
+        (is (= false @called)))))
+
+  (deftest test-create-with-jar-options
+    (testing "the resulting archive should have the proper contents"
+      (let [entries (jar-entry-seq (create {:omit-source true
+                                            :jar-exclusions [#"Biscuit"]}
+                                           app-root
+                                           tmp-dir
+                                           {:include-dependencies true}))]
+        (are [path] (contains-path? (constantly path) entries path)
+             "lib/foo.jar"
+             "classes/FakeClass.class")
+
+        (are [path] (not (contains-path? (constantly path) entries path))
+             "src/app_root/core.clj"
+             "classes/Biscuit.class")))))

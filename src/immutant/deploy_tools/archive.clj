@@ -15,18 +15,22 @@
 (defn ^{:internal true} unix-path [path]
   (.replace path "\\" "/"))
 
+(defn exclude-file? [exclusions f]
+  (some #(re-find % (.getCanonicalPath f)) exclusions))
+
 (defprotocol CopyToJar
-  (copy-to-jar [item jar & opts]))
+  (copy-to-jar [item jar opts]))
 
 (extend-type java.io.File
   CopyToJar
-  (copy-to-jar [file jar & {:keys [root-path]}]
+  (copy-to-jar [file jar {:keys [root-path exclusions]}]
   (let [root (str (unix-path root-path) \/)]
     (doseq [child (file-seq file)]
       (let [path (reduce trim-leading-str (unix-path (str child))
                          [root "/"])]
         (when (and (.exists child)
-                   (not (.isDirectory child)))
+                   (not (.isDirectory child))
+                   (not (exclude-file? exclusions child)))
           (.putNextEntry jar (doto (JarEntry. path)
                                (.setTime (.lastModified child))))
           (io/copy child jar)))))))
@@ -35,27 +39,28 @@
 
 (extend-type VirtualFile
   CopyToJar
-  (copy-to-jar [vfile jar & _]
+  (copy-to-jar [vfile jar _]
     (.putNextEntry jar (doto (JarEntry. (:name vfile))
                          (.setTime (System/currentTimeMillis))))
     (io/copy (:content vfile) jar)))
 
-(defn ^{:internal true} write-jar [root-path out-file filespecs]
+(defn ^{:internal true} write-jar [root-path out-file filespecs exclusions]
   (with-open [jar (-> out-file
                       (FileOutputStream.)
                       (BufferedOutputStream.)
                       (JarOutputStream.))]
     (doseq [filespec filespecs]
-      (copy-to-jar filespec jar :root-path root-path))))
+      (copy-to-jar filespec jar  {:root-path root-path :exclusions exclusions}))))
 
 (defn ^{:private true} potential-entry-points
-  [include-deps?]
+  [include-deps? include-src?]
   (remove
    nil?
    [[:resource-paths
      "resources"] 
-    [:source-paths
-     "src"]       
+    (when include-src?
+      [:source-paths
+       "src"])       
     [:native-path
      ["native"
       "target/native"]]
@@ -69,7 +74,7 @@
 (defn ^{:internal true} entry-points
   "Specifies the top level files to be archived, along with the dirs to be recursively archived."
   [project root-path include-deps?]
-  (->> (potential-entry-points include-deps?)
+  (->> (potential-entry-points include-deps? (not (:omit-source project)))
        (map (fn [[k default]]
               (let [paths (k project)]
                 (if (seq paths)
@@ -94,11 +99,11 @@
         include-deps? (:include-dependencies options)
         copy-deps-fn (:copy-deps-fn options)
         filespecs (entry-points project root-path include-deps?)
-        id (internal-descriptor (dissoc options
-                                        :include-dependencies
-                                        :copy-deps-fn
-                                        :name))]
+        id (internal-descriptor (select-keys options
+                                             [:context-path
+                                              :virtual-host
+                                              :lein-profiles]))]
     (and include-deps? copy-deps-fn (copy-deps-fn project))
-    (write-jar root-path jar-file (if id (conj filespecs id) filespecs))
+    (write-jar root-path jar-file (if id (conj filespecs id) filespecs) (:jar-exclusions project))
     jar-file))
 
