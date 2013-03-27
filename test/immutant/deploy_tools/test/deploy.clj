@@ -120,7 +120,7 @@
           dodeploy-marker (util/dodeploy-marker deployed-file)]
       (is (.exists deployed-file))
       (is (.exists dodeploy-marker))
-      (is (= true (undeploy *mock-jboss-home* {:name "gravy"} app-root nil)))
+      (is (undeploy *mock-jboss-home* {:name "gravy"} app-root nil))
       (is (not (.exists deployed-file)))
       (is (not (.exists dodeploy-marker)))))
 
