@@ -5,4 +5,5 @@
   :url "https://github.com/immutant/deploy-tools"
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.4.0"]]
                    :resource-paths ["resources" "test-resources"]}}
+  {:signing {:gpg-key "BFC757F9"}}
   :lein-release {:deploy-via :clojars})
