@@ -86,18 +86,7 @@
         (are [path] (contains-path? (constantly path) entries path)
              "lib/foo.jar"
              "src/app_root/core.clj"
-             "classes/FakeClass.class")))
-    
-    (let [called (atom nil)
-          copy-deps-fn (fn [_] (reset! called true))]
-      (testing "the copy-deps-fn should be called when include-deps? is true"
-        (reset! called false)
-        (create nil app-root tmp-dir {:include-dependencies true, :copy-deps-fn copy-deps-fn})
-        (is (= true @called)))
-      (testing "the copy-deps-fn should not be called when include-deps? is false"
-        (reset! called false)
-        (create nil app-root tmp-dir {:include-dependencies false, :copy-deps-fn copy-deps-fn})
-        (is (= false @called)))))
+             "classes/FakeClass.class"))))
 
   (deftest test-create-with-jar-options
     (testing "the resulting archive should have the proper contents"
