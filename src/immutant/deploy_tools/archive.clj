@@ -94,7 +94,8 @@
       (->VirtualFile ".immutant.clj" (pr-str opts)))))
 
 (defn create [project root-dir dest-dir {:keys [extra-filespecs include-dependencies] :as options}]
-  (let [jar-file (io/file dest-dir (archive-name project root-dir options))
+  (let [jar-file (io/file (doto dest-dir .mkdirs)
+                          (archive-name project root-dir options))
         root-path (.getAbsolutePath root-dir)
         filespecs (concat (entry-points project root-path include-dependencies)
                           extra-filespecs)
