@@ -91,19 +91,17 @@
 (defn ^:internal internal-descriptor [opts]
   (let [opts (into {} (remove (comp nil? val) opts))]
     (when-not (empty? opts)
-      (VirtualFile. ".immutant.clj" (pr-str opts)))))
+      (->VirtualFile ".immutant.clj" (pr-str opts)))))
 
-(defn create [project root-dir dest-dir options]
+(defn create [project root-dir dest-dir {:keys [extra-filespecs include-dependencies] :as options}]
   (let [jar-file (io/file dest-dir (archive-name project root-dir options))
         root-path (.getAbsolutePath root-dir)
-        include-deps? (:include-dependencies options)
-        copy-deps-fn (:copy-deps-fn options)
-        filespecs (entry-points project root-path include-deps?)
+        filespecs (concat (entry-points project root-path include-dependencies)
+                          extra-filespecs)
         id (internal-descriptor (select-keys options
                                              [:context-path
                                               :virtual-host
                                               :lein-profiles]))]
-    (and include-deps? copy-deps-fn (copy-deps-fn project))
     (write-jar root-path jar-file (if id (conj filespecs id) filespecs) (:jar-exclusions project))
     jar-file))
 
