@@ -26,4 +26,7 @@
     (is (= "biscuit.ima" (archive-name nil app-root {:name "biscuit"}))))
   
   (deftest archive-name-with-a-nil-name-opt-should-not-use-that-name
-    (is (= "app-root.ima" (archive-name nil app-root {:name nil})))))
+    (is (= "app-root.ima" (archive-name nil app-root {:name nil}))))
+
+  (deftest archive-name-with-version-flag-should-include-the-project-version
+    (is (= "ham-1.2.3.ima" (archive-name {:name "ham" :version "1.2.3"} app-root {:version true})))))

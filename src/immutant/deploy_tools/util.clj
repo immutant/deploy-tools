@@ -35,7 +35,10 @@
   (str (or (:name options) (app-name project root-dir)) ".clj") )
 
 (defn archive-name [project root-dir options]
-  (str (or (:name options) (app-name project root-dir)) ".ima"))
+  (let [n (or (:name options) (app-name project root-dir))]
+    (if (:version options)
+      (str n "-" (:version project) ".ima")
+      (str n ".ima"))))
 
 (defn deployment-dir
   ([]
