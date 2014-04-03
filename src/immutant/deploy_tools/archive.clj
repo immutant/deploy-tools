@@ -50,7 +50,7 @@
                       (BufferedOutputStream.)
                       (JarOutputStream.))]
     (doseq [filespec filespecs]
-      (copy-to-jar filespec jar  {:root-path root-path :exclusions exclusions}))))
+      (copy-to-jar filespec jar {:root-path root-path :exclusions exclusions}))))
 
 (defn ^{:private true} potential-entry-points
   [include-deps? include-src?]
@@ -100,9 +100,11 @@
         filespecs (concat (entry-points project root-path include-dependencies)
                           extra-filespecs)
         id (internal-descriptor (select-keys options
-                                             [:context-path
-                                              :virtual-host
-                                              :lein-profiles]))]
+                                  [:resolve-dependencies
+                                   :resolve-plugin-dependencies
+                                   :context-path
+                                   :virtual-host
+                                   :lein-profiles]))]
     (write-jar root-path jar-file (if id (conj filespecs id) filespecs) (:jar-exclusions project))
     jar-file))
 
