@@ -8,8 +8,7 @@
            [java.util.jar JarEntry JarOutputStream]))
 
 (defn abort [& msg]
-  ;; TODO: map?
-  (throw (ex-info (apply str msg) {})))
+  (throw (RuntimeException. (apply str msg))))
 
 (defn build-init [options options]
   (pr-str
@@ -39,7 +38,7 @@
                              version))
                      (extract-deps options))]
     version
-    (abort (format "No %s dependency found in the options' dependency tree." ns))))
+    (abort (format "No %s dependency found in the dependency tree." ns))))
 
 (defn classpath [options]
   (let [classpath (:classpath options)]
