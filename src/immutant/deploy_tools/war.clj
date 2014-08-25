@@ -16,7 +16,7 @@
        (require 'immutant.wildfly)
        (immutant.wildfly/init-deployment (quote ~(:init-fn options))
          ~(if (-> options :nrepl :start?)
-            {:nrepl (merge {:host "localhost" :port 0}
+            {:nrepl (merge {:interface "localhost" :port 0}
                       (dissoc (:nrepl options) :options))}
             {})))))
 
@@ -236,7 +236,7 @@
       and jboss-deployment-structure.xml for user customization.
     * :nrepl
       * :port
-      * :host
+      * :interface
       * :start?
       * :port-file (absolute)
       * :options
