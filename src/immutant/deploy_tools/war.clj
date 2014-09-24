@@ -200,16 +200,15 @@
 (defn add-base-xml
   "Adds a WEB-INF/file-name to the entry specs unless it already exists.
 
-   The file is pulled from the wunderboss-wildfly jar.
-   If it does add the file to the specs, it also drops a copy in
-   target/ in case the user needs to customize it."
+   The file is pulled from the wunderboss-wildfly jar.  It also drops a
+  copy of the original in target/ in case the user needs to customize it."
   [specs options file-name]
   (let [spec-key (str "WEB-INF/" file-name)]
-    (if (specs spec-key)
-      specs
-      (let [content (find-base-xml specs file-name)]
-        (when (:target-path options)
-          (spit (io/file (:target-path options) file-name) content))
+    (let [content (find-base-xml specs file-name)]
+      (when (:target-path options)
+        (spit (io/file (:target-path options) file-name) content))
+      (if (specs spec-key)
+        specs
         (assoc specs spec-key content)))))
 
 (defn add-uberjar
