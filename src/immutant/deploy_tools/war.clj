@@ -20,7 +20,7 @@
        (require 'immutant.wildfly)
        (immutant.wildfly/init-deployment (quote ~(:init-fn options))
          ~(if (-> options :nrepl :start?)
-            {:nrepl (merge {:interface "localhost" :port 0}
+            {:nrepl (merge {:host "localhost" :port 0}
                       (dissoc (:nrepl options) :options))}
             {})))))
 
@@ -262,7 +262,7 @@
     * :virtual-host - a seq of host names
     * :nrepl
       * :port
-      * :interface
+      * :host
       * :start?
       * :port-file (absolute)
       * :options
