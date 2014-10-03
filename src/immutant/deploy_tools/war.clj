@@ -10,6 +10,10 @@
 (defn abort [& msg]
   (throw (RuntimeException. (apply str msg))))
 
+(defn warn [& msg]
+  (binding [*out* *err*]
+    (apply println "Warning:" msg)))
+
 (defn build-init [options options]
   (pr-str
     `(do
@@ -194,7 +198,11 @@
 
 (defn add-jboss-web-xml [specs {:keys [context-root virtual-host target-path]}]
   (if (or (specs "WEB-INF/jboss-web.xml") (not (or context-root virtual-host)))
-    specs
+    (do
+      (when (or context-root virtual-host)
+        (warn ":context-root or :virtual-host specified, but a WEB-INF/jboss-web.xml"
+          "exists in [:immutant :war :resource-paths]. Ignoring options."))
+      specs)
     (let [content (generate-jboss-web-xml context-root virtual-host)]
       (when target-path
         (spit (io/file target-path "jboss-web.xml") content))
