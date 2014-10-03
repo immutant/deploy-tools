@@ -53,10 +53,10 @@
                 (conj (vec accum) path))))
           classpath
           (cp/resolve-dependencies :dependencies
-               (assoc options :dependencies
-                      [['org.immutant/wildfly (locate-version options "org.immutant")
-                        :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
-                                     'org.clojure/clojure]]])))))))
+            (assoc options :dependencies
+                   [['org.immutant/wildfly (locate-version options "org.immutant")
+                     :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
+                                  'org.clojure/clojure]]])))))))
 
 (defn build-descriptor [options]
   (cond-> {:language "clojure"
@@ -183,6 +183,23 @@
     specs
     (:war-resource-paths options)))
 
+(defn generate-jboss-web-xml [context-root virtual-host]
+  (format "<jboss-web>\n%s%s</jboss-web>\n"
+    (if context-root
+      (format "<context-root>%s</context-root>\n" context-root)
+      "")
+    (if virtual-host
+      (format "<virtual-host>%s</virtual-host>\n" virtual-host)
+      "")))
+
+(defn add-jboss-web-xml [specs {:keys [context-root virtual-host target-path]}]
+  (if (or (specs "WEB-INF/jboss-web.xml") (not (or context-root virtual-host)))
+    specs
+    (let [content (generate-jboss-web-xml context-root virtual-host)]
+      (when target-path
+        (spit (io/file target-path "jboss-web.xml") content))
+      (assoc specs "WEB-INF/jboss-web.xml" content))))
+
 (defn find-base-xml [specs file-name]
   (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly.*\.jar$" %) (keys specs))]
     (let [cl (doto (clojure.lang.DynamicClassLoader.)
@@ -203,13 +220,13 @@
    The file is pulled from the wunderboss-wildfly jar.  It also drops a
   copy of the original in target/ in case the user needs to customize it."
   [specs options file-name]
-  (let [spec-key (str "WEB-INF/" file-name)]
-    (let [content (find-base-xml specs file-name)]
-      (when (:target-path options)
-        (spit (io/file (:target-path options) file-name) content))
-      (if (specs spec-key)
-        specs
-        (assoc specs spec-key content)))))
+  (let [spec-key (str "WEB-INF/" file-name)
+        content (find-base-xml specs file-name)]
+    (when (:target-path options)
+      (spit (io/file (:target-path options) file-name) content))
+    (if (specs spec-key)
+      specs
+      (assoc specs spec-key content))))
 
 (defn add-uberjar
   [specs options]
@@ -233,6 +250,8 @@
     * :dev? - generate a \"dev\" war
     * :target-path - the target path for the app, used to store web.xml
       and jboss-deployment-structure.xml for user customization.
+    * :content-root
+    * :virtual-host - a seq of host names
     * :nrepl
       * :port
       * :interface
@@ -258,5 +277,6 @@
         (add-top-level-jars options)
         (add-top-level-resources options)
         (add-base-xml options "web.xml")
-        (add-base-xml options "jboss-deployment-structure.xml")))
+        (add-base-xml options "jboss-deployment-structure.xml")
+        (add-jboss-web-xml options)))
     file))
