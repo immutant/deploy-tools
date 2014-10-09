@@ -130,9 +130,10 @@
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
     (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly]
-      (match 'org.immutant/caching)   (conj 'org.projectodd.wunderboss/wunderboss-caching)
-      (match 'org.immutant/messaging) (conj 'org.projectodd.wunderboss/wunderboss-messaging)
-      (match 'org.immutant/web)       (conj 'org.projectodd.wunderboss/wunderboss-web))))
+      (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching)
+      (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging)
+      (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions)
+      (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))))
 
 (defn wboss-jars-for-dev [options]
   (let [wboss-version (locate-version options "org.projectodd.wunderboss")]
