@@ -197,14 +197,14 @@
       (format "<virtual-host>%s</virtual-host>\n" virtual-host)
       "")))
 
-(defn add-jboss-web-xml [specs {:keys [context-root virtual-host target-path]}]
-  (if (or (specs "WEB-INF/jboss-web.xml") (not (or context-root virtual-host)))
+(defn add-jboss-web-xml [specs {:keys [context-path virtual-host target-path]}]
+  (if (or (specs "WEB-INF/jboss-web.xml") (not (or context-path virtual-host)))
     (do
-      (when (or context-root virtual-host)
-        (warn ":context-root or :virtual-host specified, but a WEB-INF/jboss-web.xml"
+      (when (or context-path virtual-host)
+        (warn ":context-path or :virtual-host specified, but a WEB-INF/jboss-web.xml"
           "exists in [:immutant :war :resource-paths]. Ignoring options."))
       specs)
-    (let [content (generate-jboss-web-xml context-root virtual-host)]
+    (let [content (generate-jboss-web-xml context-path virtual-host)]
       (when target-path
         (spit (io/file target-path "jboss-web.xml") content))
       (assoc specs "WEB-INF/jboss-web.xml" content))))
@@ -259,7 +259,7 @@
     * :dev? - generate a \"dev\" war
     * :target-path - the target path for the app, used to store web.xml
       and jboss-deployment-structure.xml for user customization.
-    * :content-root
+    * :context-path
     * :virtual-host - a seq of host names
     * :nrepl
       * :port
