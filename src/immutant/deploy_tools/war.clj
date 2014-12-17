@@ -164,6 +164,9 @@
       (wboss-jars-for-dev options)
       (all-wildfly-jars options))))
 
+(defn ensure-forward-slashes [path]
+  (str/join "/" (str/split path #"[\\/]")))
+
 (defn add-resource-dir [specs resource-dir]
   (let [dir (io/file resource-dir)]
     (if (.exists dir)
@@ -171,8 +174,9 @@
         (fn [m file]
           (if (.isFile file)
             (add-file-spec m
-              (.substring (.getParent (.getAbsoluteFile file))
-                (.length (.getAbsolutePath dir)))
+              (ensure-forward-slashes
+                (.substring (.getParent (.getAbsoluteFile file))
+                  (.length (.getAbsolutePath dir))))
               file)
             m))
         specs
