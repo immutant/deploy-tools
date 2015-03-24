@@ -36,13 +36,17 @@
     (cp/dependency-hierarchy :dependencies)
     extract-keys))
 
-(defn locate-version [options ns]
-  (if-let [version (some (fn [[dep version]]
-                           (if (= ns (namespace dep))
-                             version))
-                     (extract-deps options))]
-    version
-    (abort (format "No %s dependency found in the dependency tree." ns))))
+(defn locate-version
+  ([options ns]
+   (locate-version options ns identity))
+  ([options ns allowed]
+   (if-let [version (some (fn [[dep version]]
+                            (if (and (= ns (namespace dep))
+                                   (allowed (name dep)))
+                              version))
+                      (extract-deps options))]
+     version
+     (abort (format "No %s dependency found in the dependency tree." ns)))))
 
 (defn classpath [options]
   (let [classpath (:classpath options)]
@@ -58,7 +62,14 @@
           classpath
           (cp/resolve-dependencies :dependencies
             (assoc options :dependencies
-                   [['org.immutant/wildfly (locate-version options "org.immutant")
+                   [['org.immutant/wildfly (locate-version options "org.immutant"
+                                             #{"caching"
+                                               "core"
+                                               "immutant"
+                                               "messaging"
+                                               "scheduling"
+                                               "transactions"
+                                               "web"})
                      :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
                                   'org.clojure/clojure]]])))))))
 
