@@ -1,6 +1,5 @@
 (ns immutant.deploy-tools.war
-  (:require [leiningen.core.classpath :as cp]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.java.io :as io])
   (:import [java.io BufferedOutputStream FileOutputStream]
            java.util.Properties
@@ -10,18 +9,20 @@
 (defn abort [& msg]
   (throw (RuntimeException. (apply str msg))))
 
-(defn warn [& msg]
-  (binding [*out* *err*]
-    (apply println "Warning:" msg)))
+(defn warn [external-f & msg]
+  (if external-f
+    (apply external-f msg)
+    (binding [*out* *err*]
+      (apply println "Warning:" msg))))
 
-(defn build-init [options options]
+(defn build-init [{:keys [init-fn nrepl]}]
   (pr-str
     `(do
        (require 'immutant.wildfly)
-       (immutant.wildfly/init-deployment (quote ~(:init-fn options))
-         ~(if (-> options :nrepl :start?)
+       (immutant.wildfly/init-deployment (quote ~init-fn)
+         ~(if (:start? nrepl)
             {:nrepl (merge {:host "localhost" :port 0}
-                      (dissoc (:nrepl options) :options))}
+                      (dissoc nrepl :options))}
             {})))))
 
 (defn extract-keys
@@ -31,9 +32,9 @@
      (if (map? m)
        (concat (keys m) (mapcat (fn [[_ v]] (extract-keys acc v)) m)))))
 
-(defn extract-deps [options]
+(defn extract-deps [{:keys [dependency-hierarcher] :as options}]
   (->> options
-    (cp/dependency-hierarchy :dependencies)
+    dependency-hierarcher
     extract-keys))
 
 (defn locate-version
@@ -48,34 +49,34 @@
      version
      (abort (format "No %s dependency found in the dependency tree." ns)))))
 
-(defn classpath [options]
-  (let [classpath (:classpath options)]
-    (str/join ":"
-      (if (some #(re-find #"/wildfly.*?\.jar" %) classpath)
+(defn classpath [{:keys [classpath dependency-resolver repositories]
+                  :as options}]
+  (str/join ":"
+    (if (some #(re-find #"/wildfly.*?\.jar" %) classpath)
+      classpath
+      (reduce
+        (fn [accum entry]
+          (let [path (.getAbsolutePath entry)]
+            (if (some #{path} accum)
+              accum
+              (conj (vec accum) path))))
         classpath
-        (reduce
-          (fn [accum entry]
-            (let [path (.getAbsolutePath entry)]
-              (if (some #{path} accum)
-                accum
-                (conj (vec accum) path))))
-          classpath
-          (cp/resolve-dependencies :dependencies
-            (assoc options :dependencies
-                   [['org.immutant/wildfly (locate-version options "org.immutant"
-                                             #{"caching"
-                                               "core"
-                                               "immutant"
-                                               "messaging"
-                                               "scheduling"
-                                               "transactions"
-                                               "web"})
-                     :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
-                                  'org.clojure/clojure]]])))))))
+        (dependency-resolver
+          {:dependencies [['org.immutant/wildfly (locate-version options "org.immutant"
+                                                   #{"caching"
+                                                     "core"
+                                                     "immutant"
+                                                     "messaging"
+                                                     "scheduling"
+                                                     "transactions"
+                                                     "web"})
+                           :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
+                                        'org.clojure/clojure]]]
+           :repositories repositories})))))
 
 (defn build-descriptor [options]
   (cond-> {:language "clojure"
-           :init (build-init options options)}
+           :init (build-init options)}
     (:dev? options)   (merge
                         {:root (:root options)
                          :classpath (classpath options)})
@@ -101,18 +102,6 @@
     (doseq [[path content] specs]
       (.putNextEntry out (JarEntry. path))
       (io/copy content out))))
-
-(defn resolve-path [project path]
-  (if path
-    (let [deployments-dir (io/file path "standalone/deployments")]
-      (when-not (.exists path)
-        (abort (format "Path '%s' does not exist." path)))
-      (when-not (.isDirectory path)
-        (abort (format "Path '%s' is not a directory." path)))
-      (if (.exists deployments-dir)
-        deployments-dir
-        path))
-    (io/file (:target-path project))))
 
 (defn add-app-properties
   "Adds the generated wunderboss app.properties to the entry specs."
@@ -146,22 +135,22 @@
       (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions)
       (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))))
 
-(defn wboss-jars-for-dev [options]
+(defn wboss-jars-for-dev [{:keys [dependency-resolver] :as options}]
   (let [wboss-version (locate-version options "org.projectodd.wunderboss")]
-    (->> (assoc options
-           :dependencies (mapv (fn [dep]
-                                 [dep wboss-version])
-                           (find-required-wboss-dependencies options)))
-      (cp/resolve-dependencies :dependencies))))
+    (dependency-resolver
+      (assoc options
+        :dependencies (mapv (fn [dep]
+                              [dep wboss-version])
+                        (find-required-wboss-dependencies options))))))
 
-(defn all-wildfly-jars [options]
-  (->> (assoc options
-         :dependencies [['org.immutant/wildfly (locate-version options "org.immutant")
-                         :exclusions
-                         ['org.immutant/core
-                          'org.clojure/clojure
-                          'org.projectodd.wunderboss/wunderboss-clojure]]])
-    (cp/resolve-dependencies :dependencies)))
+(defn all-wildfly-jars [{:keys [dependency-resolver] :as options}]
+  (dependency-resolver
+    (assoc options
+      :dependencies [['org.immutant/wildfly (locate-version options "org.immutant")
+                      :exclusions
+                      ['org.immutant/core
+                       'org.clojure/clojure
+                       'org.projectodd.wunderboss/wunderboss-clojure]]])))
 
 (defn add-top-level-jars
   "Adds any additional (other than the uberjar) top-level jars to the war.
@@ -212,11 +201,11 @@
       (format "<virtual-host>%s</virtual-host>\n" virtual-host)
       "")))
 
-(defn add-jboss-web-xml [specs {:keys [context-path virtual-host target-path]}]
+(defn add-jboss-web-xml [specs {:keys [context-path virtual-host target-path warn-fn]}]
   (if (or (specs "WEB-INF/jboss-web.xml") (not (or context-path virtual-host)))
     (do
       (when (or context-path virtual-host)
-        (warn ":context-path or :virtual-host specified, but a WEB-INF/jboss-web.xml"
+        (warn warn-fn ":context-path or :virtual-host specified, but a WEB-INF/jboss-web.xml"
           "exists in [:immutant :war :resource-paths]. Ignoring options."))
       specs)
     (let [content (generate-jboss-web-xml context-path virtual-host)]
@@ -259,6 +248,18 @@
     (add-file-spec specs "WEB-INF/lib"
       (io/file (:uberjar options)))))
 
+(defn resolve-target-path [path]
+  (when path
+    (let [dir (io/file path)
+          deployments-dir (io/file dir "standalone/deployments")]
+      (when-not (.exists dir)
+        (abort (format "Path '%s' does not exist." path)))
+      (when-not (.isDirectory dir)
+        (abort (format "Path '%s' is not a directory." path)))
+      (if (.exists deployments-dir)
+        deployments-dir
+        path))))
+
 (defn create-war
   "Generates a war file suitable for deploying to a WildFly container.
 
@@ -268,6 +269,9 @@
 
     * :init-fn - the fully-qualified init function
     * :dependencies - a vector of depenencies for the app, in lein/aether form
+    * :dependency-resolver - (fn [deps repos] ...) - a fn that resolves
+      dependencies. deps is a standard pomegranate dependency vector, repos
+      is a standard pomegranate
 
     Truly optional options:
 
