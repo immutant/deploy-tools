@@ -1,4 +1,4 @@
-(defproject org.immutant/deploy-tools "2.0.5"
+(defproject org.immutant/deploy-tools "2.0.6-SNAPSHOT"
   :description "Tools for deploying Immutant applications to a container."
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
