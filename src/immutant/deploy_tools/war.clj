@@ -129,7 +129,7 @@
   (let [deps (mapv first (extract-deps options))
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
-    (cond-> ['org.projectodd.wunderboss/wunderboss-as-support]
+    (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly]
       (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching)
       (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging)
       (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions)
@@ -214,7 +214,7 @@
       (assoc specs "WEB-INF/jboss-web.xml" content))))
 
 (defn find-base-xml [specs file-name]
-  (if-let [jar-key (some #(re-find #"^.*wunderboss-as-support.*\.jar$" %) (keys specs))]
+  (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly.*\.jar$" %) (keys specs))]
     (let [cl (doto (clojure.lang.DynamicClassLoader.)
                (.addURL (.toURL (specs jar-key))))
           old-cl (-> (Thread/currentThread) .getContextClassLoader)]
