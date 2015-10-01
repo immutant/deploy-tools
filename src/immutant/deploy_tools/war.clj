@@ -52,7 +52,7 @@
 (defn classpath [{:keys [classpath dependency-resolver repositories]
                   :as options}]
   (str/join ":"
-    (if (some #(re-find #"/wildfly.*?\.jar" %) classpath)
+    (if (some #(re-find #"/org/immutant/wildfly/.*?/wildfly.*?\.jar" %) classpath)
       classpath
       (reduce
         (fn [accum entry]
