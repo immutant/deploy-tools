@@ -51,35 +51,45 @@
 
 (defn classpath [{:keys [classpath dependency-resolver repositories]
                   :as options}]
-  (str/join ":"
-    (if (some #(re-find #"/org/immutant/wildfly/.*?/wildfly.*?\.jar" %) classpath)
+  (if (some #(re-find #"/org/immutant/wildfly/.*?/wildfly.*?\.jar" %) classpath)
+    classpath
+    (reduce
+      (fn [accum entry]
+        (let [path (.getAbsolutePath entry)]
+          (if (some #{path} accum)
+            accum
+            (conj (vec accum) path))))
       classpath
-      (reduce
-        (fn [accum entry]
-          (let [path (.getAbsolutePath entry)]
-            (if (some #{path} accum)
-              accum
-              (conj (vec accum) path))))
-        classpath
-        (dependency-resolver
-          {:dependencies [['org.immutant/wildfly (locate-version options "org.immutant"
-                                                   #{"caching"
-                                                     "core"
-                                                     "immutant"
-                                                     "messaging"
-                                                     "scheduling"
-                                                     "transactions"
-                                                     "web"})
-                           :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
-                                        'org.clojure/clojure]]]
-           :repositories repositories})))))
+      (dependency-resolver
+        {:dependencies [['org.immutant/wildfly (locate-version options "org.immutant"
+                                                 #{"caching"
+                                                   "core"
+                                                   "immutant"
+                                                   "messaging"
+                                                   "scheduling"
+                                                   "transactions"
+                                                   "web"})
+                         :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
+                                      'org.clojure/clojure]]]
+         :repositories repositories}))))
 
-(defn build-descriptor [options]
+(defn segregate-classpath [{:keys [:dev?] :as options}]
+  (-> (if dev?
+        (->> (classpath options)
+          (group-by #(if (.endsWith % ".jar")
+                       :classpath-jars
+                       :classpath))
+          (merge options))
+        options)
+    (update-in [:classpath] (partial str/join ":"))
+    (update-in [:classpath-jars] (partial map io/file))))
+
+(defn build-descriptor [{:keys [root classpath] :as options}]
   (cond-> {:language "clojure"
            :init (build-init options)}
     (:dev? options)   (merge
-                        {:root (:root options)
-                         :classpath (classpath options)})
+                        {:root root
+                         :classpath classpath})
     (-> options
       :nrepl :start?) (merge
                         {"config.repl-options"
@@ -157,12 +167,13 @@
 
    These will be just enough jars to bootstrap the app in the container,
    and vary for devwars and uberwars."
-  [specs options]
-  (reduce #(add-file-spec %1 "WEB-INF/lib" %2)
-    specs
-    (if (:dev? options)
-      (wboss-jars-for-dev options)
-      (all-wildfly-jars options))))
+  [specs {:keys [dev? classpath-jars]:as options}]
+  (let [wf-jars (all-wildfly-jars options)]
+    (reduce #(add-file-spec %1 "WEB-INF/lib" %2)
+      specs
+      (if dev?
+        (concat wf-jars classpath-jars)
+        wf-jars))))
 
 (defn ensure-forward-slashes [path]
   (str/join "/" (str/split path #"[\\/]")))
@@ -297,14 +308,15 @@
 
    :repositories, etc. (look at classpath fns)"
   [dest-path options]
-  (let [file (io/file dest-path)]
+  (let [file (io/file dest-path)
+        options' (segregate-classpath options)]
     (build-war file
       (-> {}
-        (add-uberjar options)
-        (add-app-properties options)
-        (add-top-level-jars options)
-        (add-top-level-resources options)
-        (add-base-xml options "web.xml")
-        (add-base-xml options "jboss-deployment-structure.xml")
-        (add-jboss-web-xml options)))
+        (add-uberjar options')
+        (add-app-properties options')
+        (add-top-level-jars options')
+        (add-top-level-resources options')
+        (add-base-xml options' "web.xml")
+        (add-base-xml options' "jboss-deployment-structure.xml")
+        (add-jboss-web-xml options')))
     file))
