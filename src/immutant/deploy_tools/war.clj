@@ -139,28 +139,28 @@
   (let [deps (mapv first (extract-deps options))
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
-    (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly]
-      (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching)
-      (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging)
-      (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions)
+    (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core]
+      (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
+                                           'org.projectodd.wunderboss/wunderboss-wildfly-caching)
+      (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
+                                           'org.projectodd.wunderboss/wunderboss-wildfly-messaging)
+      (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions
+                                           'org.projectodd.wunderboss/wunderboss-wildfly-transactions)
       (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))))
 
-(defn wboss-jars-for-dev [{:keys [dependency-resolver] :as options}]
+(defn wboss-dev-jars [options]
   (let [wboss-version (locate-version options "org.projectodd.wunderboss")]
-    (dependency-resolver
-      (assoc options
-        :dependencies (mapv (fn [dep]
-                              [dep wboss-version])
-                        (find-required-wboss-dependencies options))))))
+    (mapv (fn [dep] [dep wboss-version])
+      (find-required-wboss-dependencies options))))
 
-(defn all-wildfly-jars [{:keys [dependency-resolver] :as options}]
+(defn all-wildfly-jars [{:keys [dependency-resolver dev?] :as options}]
   (dependency-resolver
     (assoc options
-      :dependencies [['org.immutant/wildfly (locate-version options "org.immutant")
-                      :exclusions
-                      ['org.immutant/core
-                       'org.clojure/clojure
-                       'org.projectodd.wunderboss/wunderboss-clojure]]])))
+      :dependencies (concat [['org.immutant/wildfly (locate-version options "org.immutant")]]
+                      (when dev? (wboss-dev-jars options)))
+      :exclusions   ['org.immutant/core
+                     'org.clojure/clojure
+                     'org.projectodd.wunderboss/wunderboss-clojure])))
 
 (defn add-top-level-jars
   "Adds any additional (other than the uberjar) top-level jars to the war.
@@ -225,7 +225,7 @@
       (assoc specs "WEB-INF/jboss-web.xml" content))))
 
 (defn find-base-xml [specs file-name]
-  (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly.*\.jar$" %) (keys specs))]
+  (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly-core-\d.*\.jar$" %) (keys specs))]
     (let [cl (doto (clojure.lang.DynamicClassLoader.)
                (.addURL (.toURL (specs jar-key))))
           old-cl (-> (Thread/currentThread) .getContextClassLoader)]
@@ -233,15 +233,15 @@
         (-> (Thread/currentThread) (.setContextClassLoader cl))
         (if-let [resource (io/resource (str "base-xml/" file-name))]
           (slurp resource)
-          (abort (format "No %s found in the wunderboss-wildfly jar." file-name)))
+          (abort (format "No %s found in the wunderboss-wildfly-core jar." file-name)))
         (finally
           (-> (Thread/currentThread) (.setContextClassLoader old-cl)))))
-    (abort "No wunderboss-wildfly jar found in the dependency tree.")))
+    (abort "No wunderboss-wildfly-core jar found in the dependency tree.")))
 
 (defn add-base-xml
   "Adds a WEB-INF/file-name to the entry specs unless it already exists.
 
-   The file is pulled from the wunderboss-wildfly jar.  It also drops a
+   The file is pulled from the wunderboss-wildfly-core jar.  It also drops a
   copy of the original in target/ in case the user needs to customize it."
   [specs options file-name]
   (let [spec-key (str "WEB-INF/" file-name)
