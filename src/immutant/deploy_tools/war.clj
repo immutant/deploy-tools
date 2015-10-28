@@ -32,24 +32,14 @@
      (if (map? m)
        (concat (keys m) (mapcat (fn [[_ v]] (extract-keys acc v)) m)))))
 
-(defn extract-deps [{:keys [dependency-hierarcher] :as options}]
-  (->> options
-    dependency-hierarcher
-    extract-keys))
+(def extract-deps
+  (memoize
+    (fn [{:keys [dependency-hierarcher] :as options}]
+      (->> options
+        dependency-hierarcher
+        extract-keys))))
 
-(defn locate-version
-  ([options ns]
-   (locate-version options ns identity))
-  ([options ns allowed]
-   (if-let [version (some (fn [[dep version]]
-                            (if (and (= ns (namespace dep))
-                                   (allowed (name dep)))
-                              version))
-                      (extract-deps options))]
-     version
-     (abort (format "No %s dependency found in the dependency tree." ns)))))
-
-(defn classpath [{:keys [classpath dependency-resolver repositories]
+(defn classpath [{:keys [classpath dependency-resolver repositories immutant-version]
                   :as options}]
   (if (some #(re-find #"/org/immutant/wildfly/.*?/wildfly.*?\.jar" %) classpath)
     classpath
@@ -61,14 +51,7 @@
             (conj (vec accum) path))))
       classpath
       (dependency-resolver
-        {:dependencies [['org.immutant/wildfly (locate-version options "org.immutant"
-                                                 #{"caching"
-                                                   "core"
-                                                   "immutant"
-                                                   "messaging"
-                                                   "scheduling"
-                                                   "transactions"
-                                                   "web"})
+        {:dependencies [['org.immutant/wildfly immutant-version
                          :exclusions ['org.projectodd.wunderboss/wunderboss-wildfly
                                       'org.clojure/clojure]]]
          :repositories repositories}))))
@@ -135,39 +118,38 @@
         path)
       file)))
 
-(defn find-required-wboss-dependencies [options]
+(defn find-required-wboss-dependencies [{:keys [wunderboss-version] :as options}]
   (let [deps (mapv first (extract-deps options))
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
-    (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core]
-      (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
-                                           'org.projectodd.wunderboss/wunderboss-wildfly-caching)
-      (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
-                                           'org.projectodd.wunderboss/wunderboss-wildfly-messaging)
-      (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions
-                                           'org.projectodd.wunderboss/wunderboss-wildfly-transactions)
-      (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))))
+    (map (fn [dep] [dep wunderboss-version])
+      (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core]
+        (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
+                                             'org.projectodd.wunderboss/wunderboss-wildfly-caching)
+        (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
+                                             'org.projectodd.wunderboss/wunderboss-wildfly-messaging)
+        (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions
+                                             'org.projectodd.wunderboss/wunderboss-wildfly-transactions)
+        (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web)))))
 
-(defn wboss-dev-jars [options]
-  (let [wboss-version (locate-version options "org.projectodd.wunderboss")]
-    (mapv (fn [dep] [dep wboss-version])
-      (find-required-wboss-dependencies options))))
-
-(defn all-wildfly-jars [{:keys [dependency-resolver dev?] :as options}]
+(defn all-wildfly-jars [{:keys [dependency-resolver dev? immutant-version] :as options}]
   (dependency-resolver
     (assoc options
-      :dependencies (concat [['org.immutant/wildfly (locate-version options "org.immutant")]]
-                      (when dev? (wboss-dev-jars options)))
-      :exclusions   ['org.immutant/core
-                     'org.clojure/clojure
-                     'org.projectodd.wunderboss/wunderboss-clojure])))
+      :dependencies (mapv 
+                      #(conj %
+                        :exclusions
+                        ['org.immutant/core
+                         'org.clojure/clojure
+                         'org.projectodd.wunderboss/wunderboss-clojure])
+                      (concat [['org.immutant/wildfly immutant-version]]
+                        (find-required-wboss-dependencies options))))))
 
 (defn add-top-level-jars
   "Adds any additional (other than the uberjar) top-level jars to the war.
 
    These will be just enough jars to bootstrap the app in the container,
    and vary for devwars and uberwars."
-  [specs {:keys [dev? classpath-jars]:as options}]
+  [specs {:keys [dev? classpath-jars] :as options}]
   (let [wf-jars (all-wildfly-jars options)]
     (reduce #(add-file-spec %1 "WEB-INF/lib" %2)
       specs
@@ -224,18 +206,37 @@
         (spit (io/file target-path "jboss-web.xml") content))
       (assoc specs "WEB-INF/jboss-web.xml" content))))
 
+(defn with-jar-on-classpath [jar-file f]
+  (with-open [cl (doto (clojure.lang.DynamicClassLoader.)
+                   (.addURL (.toURL jar-file)))]
+    (let [thread (Thread/currentThread)
+          old-cl (.getContextClassLoader thread)]
+      (try
+        (.setContextClassLoader thread cl)
+        (f)
+        (finally
+          (.setContextClassLoader thread old-cl))))))
+
+(defn locate-version [sym deps]
+  (if-let [version (some (fn [[dep version]]
+                           (when (= sym dep) version))
+                     deps)]
+    version
+    (abort (format "No %s dependency found in the dependency tree." sym))))
+
+(defn insert-versions [options]
+  (let [deps (extract-deps options)]
+    (assoc options
+      :immutant-version (locate-version 'org.immutant/core deps)
+      :wunderboss-version (locate-version
+                            'org.projectodd.wunderboss/wunderboss-core deps))))
+
 (defn find-base-xml [specs file-name]
   (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly-core-\d.*\.jar$" %) (keys specs))]
-    (let [cl (doto (clojure.lang.DynamicClassLoader.)
-               (.addURL (.toURL (specs jar-key))))
-          old-cl (-> (Thread/currentThread) .getContextClassLoader)]
-      (try
-        (-> (Thread/currentThread) (.setContextClassLoader cl))
-        (if-let [resource (io/resource (str "base-xml/" file-name))]
-          (slurp resource)
-          (abort (format "No %s found in the wunderboss-wildfly-core jar." file-name)))
-        (finally
-          (-> (Thread/currentThread) (.setContextClassLoader old-cl)))))
+    (with-jar-on-classpath (specs jar-key)
+      #(if-let [resource (io/resource (str "base-xml/" file-name))]
+         (slurp resource)
+         (abort (format "No %s found in the wunderboss-wildfly-core jar." file-name))))
     (abort "No wunderboss-wildfly-core jar found in the dependency tree.")))
 
 (defn add-base-xml
@@ -308,15 +309,20 @@
 
    :repositories, etc. (look at classpath fns)"
   [dest-path options]
-  (let [file (io/file dest-path)
-        options' (segregate-classpath options)]
-    (build-war file
-      (-> {}
-        (add-uberjar options')
-        (add-app-properties options')
-        (add-top-level-jars options')
-        (add-top-level-resources options')
-        (add-base-xml options' "web.xml")
-        (add-base-xml options' "jboss-deployment-structure.xml")
-        (add-jboss-web-xml options')))
-    file))
+  (try
+    (let [file (io/file dest-path)
+          options' (-> options
+                     insert-versions
+                     segregate-classpath)]
+      (build-war file
+        (-> {}
+          (add-uberjar options')
+          (add-app-properties options')
+          (add-top-level-jars options')
+          (add-top-level-resources options')
+          (add-base-xml options' "web.xml")
+          (add-base-xml options' "jboss-deployment-structure.xml")
+          (add-jboss-web-xml options')))
+      file)
+    (catch Exception e
+      (.printStackTrace e))))
