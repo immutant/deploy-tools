@@ -123,7 +123,8 @@
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
     (map (fn [dep] [dep wunderboss-version])
-      (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core]
+      (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core
+               'org.projectodd.wunderboss/wunderboss-wildfly-singletons]
         (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
                                              'org.projectodd.wunderboss/wunderboss-wildfly-caching)
         (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
