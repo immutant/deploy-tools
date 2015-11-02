@@ -56,7 +56,7 @@
                                       'org.clojure/clojure]]]
          :repositories repositories}))))
 
-(defn segregate-classpath [{:keys [:dev?] :as options}]
+(defn segregate-classpath [{:keys [dev?] :as options}]
   (-> (if dev?
         (->> (classpath options)
           (group-by #(if (.endsWith % ".jar")
