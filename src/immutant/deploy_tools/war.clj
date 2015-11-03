@@ -16,6 +16,7 @@
       (apply println "Warning:" msg))))
 
 (defn build-init [{:keys [init-fn nrepl]}]
+  {:pre [init-fn]}
   (pr-str
     `(do
        (require 'immutant.wildfly)
@@ -35,12 +36,14 @@
 (def extract-deps
   (memoize
     (fn [{:keys [dependency-hierarcher] :as options}]
+      {:pre [dependency-hierarcher]}
       (->> options
         dependency-hierarcher
         extract-keys))))
 
 (defn classpath [{:keys [classpath dependency-resolver repositories immutant-version]
                   :as options}]
+  {:pre [dependency-resolver repositories immutant-version]}
   (if (some #(re-find #"/org/immutant/wildfly/.*?/wildfly.*?\.jar" %) classpath)
     classpath
     (reduce
