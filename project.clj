@@ -3,6 +3,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :url "https://github.com/immutant/deploy-tools"
+  :dependencies [[version-clj "0.1.2"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.6.0"]
                                   [leiningen-core "2.4.3"]]
                    :resource-paths ["resources" "test-resources"]}}

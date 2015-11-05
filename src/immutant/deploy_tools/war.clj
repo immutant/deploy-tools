@@ -1,6 +1,7 @@
 (ns immutant.deploy-tools.war
   (:require [clojure.string :as str]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [version-clj.core :as version])
   (:import [java.io BufferedOutputStream FileOutputStream]
            java.util.Properties
            java.util.zip.ZipOutputStream
@@ -121,21 +122,33 @@
         path)
       file)))
 
-(defn find-required-wboss-dependencies [{:keys [wunderboss-version] :as options}]
+(defn pre-wunderboss-split-version? [immutant-version]
+  (if (re-find #"incremental" immutant-version)
+    (<= (version/version-compare immutant-version "2.x.incremental.667") 0)
+    (<= (version/version-compare immutant-version "2.1.0") 0)))
+
+(defn find-required-wboss-dependencies [{:keys [wunderboss-version immutant-version] :as options}]
+  {:pre [wunderboss-version immutant-version]}
   (let [deps (mapv first (extract-deps options))
         immutant-deps (filter #(= "org.immutant" (namespace %)) deps)
         match #(some #{'org.immutant/immutant %} immutant-deps)]
     (map (fn [dep] [dep wunderboss-version])
-      (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core
-               'org.projectodd.wunderboss/wunderboss-wildfly-singletons]
-        (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
-                                             'org.projectodd.wunderboss/wunderboss-wildfly-caching)
-        (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
-                                             'org.projectodd.wunderboss/wunderboss-wildfly-messaging)
-        (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions
-                                             'org.projectodd.wunderboss/wunderboss-wildfly-transactions)
-        (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web)))))
-
+      (if (pre-wunderboss-split-version? immutant-version)
+        (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly]
+          (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching)
+          (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging)
+          (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions)
+          (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))
+        (cond-> ['org.projectodd.wunderboss/wunderboss-wildfly-core
+                 'org.projectodd.wunderboss/wunderboss-wildfly-singletons]
+          (match 'org.immutant/caching)      (conj 'org.projectodd.wunderboss/wunderboss-caching
+                                               'org.projectodd.wunderboss/wunderboss-wildfly-caching)
+          (match 'org.immutant/messaging)    (conj 'org.projectodd.wunderboss/wunderboss-messaging
+                                               'org.projectodd.wunderboss/wunderboss-wildfly-messaging)
+          (match 'org.immutant/transactions) (conj 'org.projectodd.wunderboss/wunderboss-transactions
+                                               'org.projectodd.wunderboss/wunderboss-wildfly-transactions)
+          (match 'org.immutant/web)          (conj 'org.projectodd.wunderboss/wunderboss-web))))))
+  
 (defn all-wildfly-jars [{:keys [dependency-resolver dev? immutant-version] :as options}]
   (dependency-resolver
     (assoc options
@@ -235,24 +248,29 @@
       :wunderboss-version (locate-version
                             'org.projectodd.wunderboss/wunderboss-core deps))))
 
-(defn find-base-xml [specs file-name]
-  (if-let [jar-key (some #(re-find #"^.*wunderboss-wildfly-core-\d.*\.jar$" %) (keys specs))]
-    (with-jar-on-classpath (specs jar-key)
-      #(if-let [resource (io/resource (str "base-xml/" file-name))]
-         (slurp resource)
-         (abort (format "No %s found in the wunderboss-wildfly-core jar." file-name))))
-    (abort "No wunderboss-wildfly-core jar found in the dependency tree.")))
+(defn find-base-xml [immutant-version specs file-name]
+  (let [jar-name (if (pre-wunderboss-split-version? immutant-version)
+                   "wunderboss-wildfly"
+                   "wunderboss-wildfly-core")]
+    (if-let [jar-key (some #(re-find (re-pattern (format "^.*%s-\\d.*\\.jar$" jar-name)) %)
+                       (keys specs))]
+      (with-jar-on-classpath (specs jar-key)
+        #(if-let [resource (io/resource (str "base-xml/" file-name))]
+           (slurp resource)
+           (abort (format "No %s found in the %s jar." file-name jar-name))))
+      (abort (format "No %s jar found in the dependency tree." jar-name)))))
 
 (defn add-base-xml
   "Adds a WEB-INF/file-name to the entry specs unless it already exists.
 
    The file is pulled from the wunderboss-wildfly-core jar.  It also drops a
   copy of the original in target/ in case the user needs to customize it."
-  [specs options file-name]
+  [specs {:keys [target-path immutant-version]} file-name]
+  {:pre [immutant-version]}
   (let [spec-key (str "WEB-INF/" file-name)
-        content (find-base-xml specs file-name)]
-    (when (:target-path options)
-      (spit (io/file (:target-path options) file-name) content))
+        content (find-base-xml immutant-version specs file-name)]
+    (when target-path
+      (spit (io/file target-path file-name) content))
     (if (specs spec-key)
       specs
       (assoc specs spec-key content))))
