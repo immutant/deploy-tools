@@ -98,7 +98,8 @@
   (with-open [out (-> file FileOutputStream. BufferedOutputStream. JarOutputStream.)]
     (doseq [[path content] specs]
       (.putNextEntry out (JarEntry. path))
-      (io/copy content out))))
+      (io/copy content out)))
+  file)
 
 (defn add-app-properties
   "Adds the generated wunderboss app.properties to the entry specs."
@@ -277,7 +278,8 @@
 
 (defn add-uberjar
   [specs options]
-  (if (:dev? options)
+  (if (or (:dev? options)
+        (not (:uberjar options)))
     specs
     (add-file-spec specs "WEB-INF/lib"
       (io/file (:uberjar options)))))
@@ -293,6 +295,19 @@
       (if (.exists deployments-dir)
         deployments-dir
         path))))
+
+(defn create-war-specs [options]
+  (let [options' (-> options
+                   insert-versions
+                   segregate-classpath)]
+    (-> {}
+      (add-uberjar options')
+      (add-app-properties options')
+      (add-top-level-jars options')
+      (add-top-level-resources options')
+      (add-base-xml options' "web.xml")
+      (add-base-xml options' "jboss-deployment-structure.xml")
+      (add-jboss-web-xml options'))))
 
 (defn create-war
   "Generates a war file suitable for deploying to a WildFly container.
@@ -332,19 +347,6 @@
    :repositories, etc. (look at classpath fns)"
   [dest-path options]
   (try
-    (let [file (io/file dest-path)
-          options' (-> options
-                     insert-versions
-                     segregate-classpath)]
-      (build-war file
-        (-> {}
-          (add-uberjar options')
-          (add-app-properties options')
-          (add-top-level-jars options')
-          (add-top-level-resources options')
-          (add-base-xml options' "web.xml")
-          (add-base-xml options' "jboss-deployment-structure.xml")
-          (add-jboss-web-xml options')))
-      file)
+    (build-war (io/file dest-path) (create-war-specs options))
     (catch Exception e
       (.printStackTrace e))))
