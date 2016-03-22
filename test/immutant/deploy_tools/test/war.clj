@@ -7,7 +7,7 @@
   (-> project insert-versions classpath))
 
 (deftest classpath-should-include-org-immutant-wildfly-for-the-given-immutant-version
-  (let [immutant-version "2.x.incremental.669"
+  (let [immutant-version "2.1.3"
         base-project {:dependencies [['org.immutant/fntest "2.0.3"]]
                       :dependency-resolver (partial cp/resolve-dependencies :dependencies)
                       :dependency-hierarcher (partial cp/dependency-hierarchy :dependencies)

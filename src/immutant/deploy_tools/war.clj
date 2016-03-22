@@ -1,8 +1,10 @@
 (ns immutant.deploy-tools.war
   (:require [clojure.string :as str]
+            [clojure.set :as set]
             [clojure.java.io :as io]
             [version-clj.core :as version])
   (:import [java.io BufferedOutputStream FileOutputStream]
+           [java.nio.file Files FileSystems StandardOpenOption]
            java.util.Properties
            java.util.zip.ZipOutputStream
            [java.util.jar JarEntry JarOutputStream]))
@@ -71,8 +73,10 @@
     (update-in [:classpath] (partial str/join ":"))
     (update-in [:classpath-jars] (partial map io/file))))
 
-(defn build-descriptor [{:keys [root classpath] :as options}]
+(defn build-descriptor [{:keys [dev? init-fn root classpath] :as options}]
   (cond-> {:language "clojure"
+           :raw-init-fn init-fn
+           :dev? dev?
            :init (build-init options)}
     (:dev? options)   (merge
                         {:root root
@@ -85,9 +89,26 @@
 (defn map->properties [m]
   (reduce (fn [p [k v]]
             (doto p
-              (.setProperty (name k) v)))
+              (.setProperty (name k) (str v))))
     (Properties.)
     m))
+
+(defn properties->partial-options-map [p]
+  (-> (->> p
+        (map (fn [[k v]] [(keyword k) v]))
+        (map (fn [[k v]] [k (case k
+                             :dev? (= "true" v)
+                             :raw-init-fn (read-string v)
+                             v)]))
+        (into {}))
+    (select-keys [:root :classpath :dev? :raw-init-fn])
+    (set/rename-keys {:raw-init-fn :init-fn})))
+
+(defn replace-file [zip path bytes]
+  (with-open [fs (FileSystems/newFileSystem (.toPath zip) nil)]
+    (Files/write (.getPath fs path (make-array String 0))
+      bytes (into-array [StandardOpenOption/CREATE])))
+  zip)
 
 (defn build-war
   "Creates a war file with the given entry specs.
